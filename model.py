@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import sklearn
 
-#read in all the data
+#read in data
 lines = []
 with open('data\driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
@@ -24,22 +24,22 @@ def generator(samples, batch_size=32):
 
             images = []
             angles = []
-            
-            #read in each image
+
             for line in batch_samples:
+                #read in each image
                 source_path = "C:\\Users\\kimasenbeck\\CarND-Behavioral-Cloning-P3\\data\\IMG\\" + line[i][4:]
                 image = cv2.imread(source_path)
-                
+
                 #Preprocess image
                 image = cv2.GaussianBlur(image, (3,3), 0)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 images.append(image)
                     
-                # Store the corresponding measurement for this image
+                #add measurements for each image
                 measurement = float(line[3])
                 angles.append(measurement)
-
-            #augment the dataset by flipping across the horizontal axis
+ 
+            #augment dataset by flipping across axis
             augmented_images, augmented_measurements = [], []
             for image,measurement in zip(images, angles):
                 augmented_images.append(image)
@@ -61,21 +61,22 @@ from keras.layers import Flatten, Dense, Lambda, Cropping2D, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 
-#construct the network architecture
+#construct network architecure
 model = Sequential()
+#begin by normalizing data
 model.add(Lambda(lambda x: x / 127.5 - 1, input_shape=(160, 320, 3)))
-#include only the road - no need to consider trees/landscape
+#crop images to exclude landscape
 model.add(Cropping2D(cropping=((50,20), (0,0))))
-#start with several 2d convolutional layers
+#add several convolutions
 model.add(Convolution2D(24, 5, 5, subsample=(2,2), activation="relu"))
 model.add(Convolution2D(36, 5, 5, subsample=(2,2), activation="relu"))
 model.add(Convolution2D(48, 5, 5, subsample=(2,2), activation="relu"))
 model.add(Convolution2D(64, 3, 3, activation="relu"))
 model.add(Convolution2D(64, 3, 3, activation="relu"))
-#Keep only 30% of the data
+#dropout to reduce overfitting
 model.add(Dropout(0.3))
+#reduce the current result to one final measurement, which is our predicted steering angle
 model.add(Flatten())
-#increase density until we have only one result left, which is our predicted measurement
 model.add(Dense(100, activation="relu"))
 model.add(Dense(50, activation="relu"))
 model.add(Dense(10, activation="relu"))
