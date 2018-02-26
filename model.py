@@ -1,12 +1,12 @@
-
 import os
 import csv
 import cv2
 import numpy as np
 import sklearn
-#18726
+
+#read in all the data
 lines = []
-with open('examples\driving_log.csv') as csvfile:
+with open('data\driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
@@ -24,23 +24,22 @@ def generator(samples, batch_size=32):
 
             images = []
             angles = []
-
+            
+            #read in each image
             for line in batch_samples:
-                correction = 0.2
-                for i in range(1):
-                    source_path = line[i]
-                    image = cv2.imread(source_path)
-                    #Preprocess image
-                    image = cv2.GaussianBlur(image, (3,3), 0)
-                    image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-                    images.append(image)
+                source_path = "C:\\Users\\kimasenbeck\\CarND-Behavioral-Cloning-P3\\data\\IMG\\" + line[i][4:]
+                image = cv2.imread(source_path)
+                
+                #Preprocess image
+                image = cv2.GaussianBlur(image, (3,3), 0)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                images.append(image)
                     
+                # Store the corresponding measurement for this image
                 measurement = float(line[3])
                 angles.append(measurement)
-                #angles.append(measurement + correction) # adjust for left camera
-                #angles.append(measurement - correction) # adjust for right camera
 
-            
+            #augment the dataset by flipping across the horizontal axis
             augmented_images, augmented_measurements = [], []
             for image,measurement in zip(images, angles):
                 augmented_images.append(image)
@@ -62,31 +61,31 @@ from keras.layers import Flatten, Dense, Lambda, Cropping2D, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 
+#construct the network architecture
 model = Sequential()
-model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160, 320, 3)))
-model.add(Cropping2D(cropping=((70,25), (0,0))))
+model.add(Lambda(lambda x: x / 127.5 - 1, input_shape=(160, 320, 3)))
+#include only the road - no need to consider trees/landscape
+model.add(Cropping2D(cropping=((50,20), (0,0))))
+#start with several 2d convolutional layers
 model.add(Convolution2D(24, 5, 5, subsample=(2,2), activation="relu"))
-model.add(Dropout(0.2))
 model.add(Convolution2D(36, 5, 5, subsample=(2,2), activation="relu"))
-model.add(Dropout(0.2))
 model.add(Convolution2D(48, 5, 5, subsample=(2,2), activation="relu"))
-model.add(Dropout(0.2))
 model.add(Convolution2D(64, 3, 3, activation="relu"))
-model.add(Dropout(0.2))
 model.add(Convolution2D(64, 3, 3, activation="relu"))
-model.add(Dropout(0.2))
+#Keep only 30% of the data
+model.add(Dropout(0.3))
 model.add(Flatten())
-model.add(Dense(100))
-model.add(Dense(50))
-model.add(Dense(10))
+#increase density until we have only one result left, which is our predicted measurement
+model.add(Dense(100, activation="relu"))
+model.add(Dense(50, activation="relu"))
+model.add(Dense(10, activation="relu"))
 model.add(Dense(1))
 
 model.compile(loss='mse', optimizer='adam')
-#model.fit(X_train, y_train, validation_split=0.2, shuffle=True, nb_epoch=2)
 model.fit_generator(train_generator, samples_per_epoch= 2*len(train_samples),
                     validation_data=validation_generator, 
-                    nb_val_samples=6*len(validation_samples), 
-                    nb_epoch=2, verbose=1)
+                    nb_val_samples=2*len(validation_samples), 
+                    nb_epoch=3, verbose=1)
 
 model.save('model.h5') 
 exit()
